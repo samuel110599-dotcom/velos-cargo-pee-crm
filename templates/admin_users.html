@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Administration — Utilisateurs</h1>
+<form method="post" class="form grid-3">
+  <label>Nom <input name="name" required></label>
+  <label>Email <input name="email" type="email" required></label>
+  <label>Rôle <select name="role"><option value="user">user</option><option value="admin">admin</option></select></label>
+  <label>Mot de passe <input name="password" type="password" required></label>
+  <div></div>
+  <button class="btn btn--primary" type="submit">Créer l'utilisateur</button>
+</form>
+<table class="table"><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Créé le</th></tr></thead><tbody>
+{% for u in users %}<tr><td>{{ u['name'] }}</td><td>{{ u['email'] }}</td><td>{{ u['role'] }}</td><td>{{ u['created_at'][:19].replace('T',' ') }}</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}
