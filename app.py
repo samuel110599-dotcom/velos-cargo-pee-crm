@@ -1,4 +1,3 @@
-
 import os, sqlite3
 from flask import Flask, render_template, request, redirect, url_for, g
 
@@ -78,68 +77,5 @@ def create_dossier():
     return render_template("dossier_create.html")
 
 if __name__ == "__main__":
-    app.run(debug=True)
-
-# --- AJOUT: auto-remplissage via API publique (gratuite, sans clé) ---
-import requests
-from flask import jsonify, request
-
-@app.route("/api/lookup_siret")
-def lookup_siret():
-    siret = (request.args.get("siret") or "").replace(" ", "")
-    if not siret or len(siret) < 9:
-        return jsonify({"ok": False, "error": "SIRET invalide"}), 400
-
-    q = siret  # l'API accepte SIRET ou SIREN dans q
-    try:
-        r = requests.get(
-            "https://recherche-entreprises.api.gouv.fr/search",
-            params={"q": q, "page": 1, "per_page": 1},
-            timeout=10
-        )
-        r.raise_for_status()
-        data = r.json()
-        results = (data.get("results") or [])
-        if not results:
-            return jsonify({"ok": False, "error": "Entreprise introuvable"}), 404
-        ent = results[0]
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"API publique indisponible: {e}"}), 502
-
-    # Nom entreprise
-    company_name = ent.get("nom_raison_sociale") or ent.get("nom_complet") or ""
-
-    # Dirigeants (souvent dispo via RNE)
-    reps = ent.get("representants") or []
-    best = None
-    for kw in ("président", "president", "gérant", "gerant", "dirigeant"):
-        best = next((d for d in reps if kw in (d.get("role","").lower())), None)
-        if best: break
-    if not best and reps:
-        best = reps[0]
-
-    signer_first_name = (best or {}).get("prenom") or ""
-    signer_last_name  = (best or {}).get("nom") or ""
-    signer_role       = (best or {}).get("role") or ""
-
-    # Adresse siège si dispo
-    siege = ent.get("etablissement_siege") or {}
-    adr = siege.get("adresse") or {}
-    billing_address = " ".join(filter(None, [
-        adr.get("numero_voie"), adr.get("type_voie"), adr.get("nom_voie")
-    ])) or (adr.get("libelle_commune") or "")
-    billing_zip = adr.get("code_postal") or ""
-    billing_city = adr.get("libelle_commune") or ""
-
-    return jsonify({
-        "ok": True,
-        "company_name": company_name,
-        "signer_first_name": signer_first_name,
-        "signer_last_name": signer_last_name,
-        "signer_role": signer_role,
-        "billing_address": billing_address,
-        "billing_zip": billing_zip,
-        "billing_city": billing_city,
-    })
-# --- FIN AJOUT ---
-
+    # IMPORTANT pour Render (écoute sur le port fourni par l'env)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
