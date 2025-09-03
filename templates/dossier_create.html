@@ -141,7 +141,6 @@ input.addEventListener('input', ()=>{
 
 /* ================= Récup dirigeants ================= */
 async function fetchEntrepriseBySiren(siren){
-  // Détail entreprise (souvent contient dirigeants)
   const url = 'https://recherche-entreprises.api.gouv.fr/entreprise/'+ encodeURIComponent(siren);
   const res = await fetch(url);
   if(!res.ok) throw new Error('API entreprise error');
@@ -171,12 +170,10 @@ async function fillOfficersFromSiretOrSiren(siretMaybe){
   }
   try{
     const ent = await fetchEntrepriseBySiren(siren);
-    // dirigeants peuvent se trouver à plusieurs endroits selon les cas
     const dirs = ent && (ent.dirigeants || (ent.siege && ent.siege.dirigeants) || []);
     if(dirs && dirs.length){
       const d = preferOfficer(dirs);
       if(d){
-        // certains renvoient "prenoms"
         const prenom = (d.prenom || d.prenoms || '').toString().split(' ')[0] || '';
         document.getElementById('signer_first_name').value = prenom;
         document.getElementById('signer_last_name').value  = d.nom || '';
@@ -186,7 +183,6 @@ async function fillOfficersFromSiretOrSiren(siretMaybe){
   }catch(e){ console.warn(e); }
 }
 
-// bouton "Remplir automatiquement (dirigeants)"
 document.getElementById('btn-fetch-officers').addEventListener('click', ()=> fillOfficersFromSiretOrSiren());
 
 /* ================= Copier facturation -> livraison ================= */
