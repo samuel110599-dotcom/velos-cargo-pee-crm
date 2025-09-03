@@ -60,7 +60,7 @@
 </form>
 
 <script>
-/* ================= Helpers ================= */
+/* ================ Helpers ================ */
 function onlyDigits(s){ return (s||'').replace(/\D+/g,''); }
 function toSirenOrSiret(raw){
   const d = onlyDigits(raw);
@@ -78,8 +78,33 @@ function preferOfficer(officers){
   }
   return officers[0];
 }
+function buildStreet(adrObj){
+  if(!adrObj) return '';
+  // on couvre tous les champs possibles renvoyés par l’API
+  const parts = [
+    adrObj.numero_voie,
+    adrObj.type_voie,
+    adrObj.libelle_voie,  // très fréquent
+    adrObj.nom_voie,      // parfois
+    adrObj.voie,          // fallback
+    adrObj.complement_adresse
+  ].filter(Boolean);
+  return parts.join(' ').replace(/\s+/g,' ').trim();
+}
+function setBilling(addr, zip, city){
+  if(document.getElementById('billing_address')) document.getElementById('billing_address').value = addr || '';
+  if(document.getElementById('billing_zip'))     document.getElementById('billing_zip').value     = zip  || '';
+  if(document.getElementById('billing_city'))    document.getElementById('billing_city').value    = city || '';
+  // recopie vers livraison si coché
+  const same = document.getElementById('same_address');
+  if(same && same.checked){
+    document.getElementById('shipping_address').value = addr || '';
+    document.getElementById('shipping_zip').value     = zip  || '';
+    document.getElementById('shipping_city').value    = city || '';
+  }
+}
 
-/* ================= Liens externes ================= */
+/* ================ Liens externes ================ */
 function updateExternalLinks(q){
   const p=document.getElementById('link-pappers');
   const s=document.getElementById('link-societe');
@@ -88,7 +113,7 @@ function updateExternalLinks(q){
   s.href='https://www.societe.com/cgi-bin/search?champs='+qq;
 }
 
-/* ================= Autocomplete entreprises (API publique) ================= */
+/* ================ Autocomplete entreprises ================ */
 const input = document.getElementById('company_name');
 const box = document.getElementById('suggestions');
 let timer=null;
@@ -110,8 +135,7 @@ input.addEventListener('input', ()=>{
         const adrObj = siege.adresse || {};
         const name  = e.nom_complet || e.nom_raison_sociale || e.nom || '';
         const siret = siege.siret || e.siret || '';
-        const adrText = [adrObj.numero_voie, adrObj.type_voie, adrObj.nom_voie].filter(Boolean).join(' ')
-                        || adrObj.voie || '';
+        const adrText = buildStreet(adrObj);
         const cp    = siege.code_postal || adrObj.code_postal || '';
         const ville = siege.libelle_commune || adrObj.libelle_commune || '';
 
@@ -122,12 +146,10 @@ input.addEventListener('input', ()=>{
         div.addEventListener('click', async ()=>{
           input.value=name;
           document.getElementById('siret').value=siret||'';
-          document.getElementById('billing_address').value=adrText||'';
-          document.getElementById('billing_zip').value=cp||'';
-          document.getElementById('billing_city').value=ville||'';
+          setBilling(adrText, cp, ville);
           box.style.display='none'; box.innerHTML='';
-          // Auto-dirigeants dès la sélection
-          await fillOfficersFromSiretOrSiren(siret);
+          // Auto-dirigeants + (re)adresse depuis l’endpoint détail
+          await fillFromSiretOrSiren(siret);
         });
         box.appendChild(div);
       });
@@ -139,7 +161,7 @@ input.addEventListener('input', ()=>{
   },250);
 });
 
-/* ================= Récup dirigeants ================= */
+/* ================ Récup dirigeants + adresse via SIRET/SIREN ================ */
 async function fetchEntrepriseBySiren(siren){
   const url = 'https://recherche-entreprises.api.gouv.fr/entreprise/'+ encodeURIComponent(siren);
   const res = await fetch(url);
@@ -147,11 +169,11 @@ async function fetchEntrepriseBySiren(siren){
   return await res.json();
 }
 
-async function fillOfficersFromSiretOrSiren(siretMaybe){
+async function fillFromSiretOrSiren(siretMaybe){
   const raw = siretMaybe || document.getElementById('siret').value || '';
   const {siren} = toSirenOrSiret(raw);
   if(!siren){
-    // Si pas de SIRET/SIREN, tenter via le nom (prendre le 1er résultat et relancer)
+    // Pas de SIRET/SIREN → tenter via le nom (1er résultat) et relancer
     const name = document.getElementById('company_name').value.trim();
     if(!name) return;
     try{
@@ -163,14 +185,35 @@ async function fillOfficersFromSiretOrSiren(siretMaybe){
       const siret2 = (siege && siege.siret) ? siege.siret : (first && first.siret);
       if(siret2){
         document.getElementById('siret').value = siret2;
-        return await fillOfficersFromSiretOrSiren(siret2);
+        return await fillFromSiretOrSiren(siret2);
       }
     }catch(e){ console.warn(e); }
     return;
   }
+
   try{
+    // 1) Endpoint détail (souvent dirigeants + adresse fiables)
     const ent = await fetchEntrepriseBySiren(siren);
-    const dirs = ent && (ent.dirigeants || (ent.siege && ent.siege.dirigeants) || []);
+
+    // ----- Adresse depuis /entreprise/{siren}
+    const siege = (ent && ent.siege) || {};
+    const adrObj = siege.adresse || {};
+    const street = buildStreet(adrObj);
+    const cp     = siege.code_postal || adrObj.code_postal || '';
+    const ville  = siege.libelle_commune || adrObj.libelle_commune || '';
+    if (street || cp || ville) setBilling(street, cp, ville);
+
+    // ----- Dirigeants
+    let dirs = (ent && (ent.dirigeants || ent.representants)) || (siege && siege.dirigeants) || [];
+    if(!dirs || !dirs.length){
+      // 2) Fallback: endpoint /search (certains cas n’exposent que "representants" ici)
+      const res2 = await fetch('https://recherche-entreprises.api.gouv.fr/search?q='+encodeURIComponent(siren)+'&page=1&per_page=1');
+      if(res2.ok){
+        const data2 = await res2.json();
+        const r0 = (data2.results||[])[0] || {};
+        dirs = r0.representants || [];
+      }
+    }
     if(dirs && dirs.length){
       const d = preferOfficer(dirs);
       if(d){
@@ -183,9 +226,10 @@ async function fillOfficersFromSiretOrSiren(siretMaybe){
   }catch(e){ console.warn(e); }
 }
 
-document.getElementById('btn-fetch-officers').addEventListener('click', ()=> fillOfficersFromSiretOrSiren());
+// bouton "Remplir automatiquement (dirigeants)" → maintenant remplit aussi l’adresse
+document.getElementById('btn-fetch-officers').addEventListener('click', ()=> fillFromSiretOrSiren());
 
-/* ================= Copier facturation -> livraison ================= */
+/* ================ Copier facturation -> livraison ================ */
 document.getElementById('same_address').addEventListener('change', (ev)=>{
   if(ev.target.checked){
     document.getElementById('shipping_address').value = document.getElementById('billing_address').value;
