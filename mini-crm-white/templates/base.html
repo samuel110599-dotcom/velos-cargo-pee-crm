@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title if title else "Vélos Cargo PEE" }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="header">
+    <div class="container header__inner">
+      <a class="brand" href="{{ url_for('dashboard') }}">{% if url_for('static', filename='logo.png') %}<img src="{{ url_for('static', filename='logo.png') }}" alt="Vélos Cargo PEE" style="height:28px;vertical-align:middle;margin-right:10px;">{% endif %}Vélos Cargo PEE</a>
+      {% if session.get('user_id') %}
+      <nav class="nav">
+        <a href="{{ url_for('dashboard') }}">Accueil</a>
+        <a href="{{ url_for('my_dossiers') }}">Mes dossiers</a>
+        <a href="{{ url_for('create_dossier') }}" class="btn btn--sm">Créer un dossier</a>
+        {% if user and user['role']=='admin' %}
+        <a href="{{ url_for('admin_users') }}">Admin: utilisateurs</a>
+        <a href="{{ url_for('admin_dossiers') }}">Admin: tous les dossiers</a>
+        {% endif %}
+        <a href="{{ url_for('logout') }}">Déconnexion</a>
+      </nav>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+      {% if messages %}
+        <ul class="flash">
+          {% for cat, msg in messages %}
+            <li class="{{ cat }}">{{ msg }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
