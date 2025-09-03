@@ -1,8 +1,28 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Administration — Tous les dossiers</h1>
-<table class="table"><thead><tr><th>ID</th><th>Titre</th><th>Propriétaire</th><th>Email</th><th>Créé le</th><th>Description</th></tr></thead><tbody>
-{% for d in dossiers %}<tr><td>{{ d['id'] }}</td><td>{{ d['title'] }}</td><td>{{ d['owner_name'] }}</td><td>{{ d['owner_email'] }}</td><td>{{ d['created_at'][:19].replace('T',' ') }}</td><td>{{ d['description'] or '' }}</td></tr>{% endfor %}
-</tbody></table>
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th><th>Titre</th><th>Entreprise</th><th>SIRET</th>
+      <th>Signataire</th><th>Contact</th><th>Facturation</th><th>Livraison</th><th>Créé le</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for d in dossiers %}
+    <tr>
+      <td>{{ d['id'] }}</td>
+      <td>{{ d['title'] }}</td>
+      <td>{{ d['company_name'] or '' }}</td>
+      <td>{{ d['siret'] or '' }}</td>
+      <td>{{ (d['signer_first_name'] or '') ~ ' ' ~ (d['signer_last_name'] or '') }}<br><small>{{ d['signer_role'] or '' }}</small></td>
+      <td>{{ d['signer_phone'] or '' }}<br>{{ d['signer_email'] or '' }}</td>
+      <td>{{ d['billing_address'] or '' }}<br>{{ d['billing_zip'] or '' }} {{ d['billing_city'] or '' }}</td>
+      <td>{{ d['shipping_address'] or '' }}<br>{{ d['shipping_zip'] or '' }} {{ d['shipping_city'] or '' }}</td>
+      <td>{{ d['created_at'][:19].replace('T',' ') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% if not dossiers %}<p class="muted">Aucun dossier créé pour l’instant.</p>{% endif %}
 {% endblock %}

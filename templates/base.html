@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title if title else "Vélos Cargo PEE — CRM" }}</title>
+  <title>{{ title if title else "VéloCargo PEE — CRM" }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -12,10 +12,7 @@
 <body>
   <header class="header">
     <div class="container header__inner">
-      <a class="brand" href="{{ url_for('dashboard') }}">
-        <img src="{{ url_for('static', filename='logo.png') }}" alt="Vélos Cargo PEE" onerror="this.style.display='none'" style="height:28px;margin-right:10px;">
-        Vélos Cargo PEE
-      </a>
+      <a class="brand" href="{{ url_for('dashboard') }}">VéloCargo PEE</a>
       {% if session.get('user_id') %}
       <nav class="nav">
         <a href="{{ url_for('dashboard') }}">Accueil</a>
@@ -30,18 +27,10 @@
       {% endif %}
     </div>
   </header>
-
   <main class="container">
     {% with messages = get_flashed_messages(with_categories=True) %}
-      {% if messages %}
-        <ul class="flash">
-          {% for cat, msg in messages %}
-            <li class="{{ cat }}">{{ msg }}</li>
-          {% endfor %}
-        </ul>
-      {% endif %}
+      {% if messages %}<ul class="flash">{% for cat, msg in messages %}<li class="{{ cat }}">{{ msg }}</li>{% endfor %}</ul>{% endif %}
     {% endwith %}
-
     {% block content %}{% endblock %}
   </main>
 </body>

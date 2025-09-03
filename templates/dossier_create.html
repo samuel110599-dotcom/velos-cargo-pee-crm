@@ -1,9 +1,110 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Créer un dossier</h1>
+<h1>Nouveau dossier</h1>
 <form method="post" class="form">
-  <label>Titre <input name="title" required placeholder="Ex. Dossier client Dupont"></label>
-  <label>Description <textarea name="description" rows="4" placeholder="Notes, contexte…"></textarea></label>
+  <h3>Informations générales</h3>
+  <label>Titre du dossier
+    <input name="title" required placeholder="Ex. Installation vélo cargo entreprise X">
+  </label>
+  <label>Notes
+    <textarea name="description" rows="3" placeholder="Notes internes…"></textarea>
+  </label>
+
+  <h3>Entreprise</h3>
+  <label>Nom de la société
+    <input id="company_name" name="company_name" placeholder="Tapez pour rechercher…">
+  </label>
+  <div id="suggestions" class="suggestions" style="display:none;"></div>
+  <label>Numéro de SIRET
+    <input id="siret" name="siret" placeholder="14 chiffres">
+  </label>
+
+  <h3>Signataire</h3>
+  <div class="grid">
+    <label>Prénom <input name="signer_first_name"></label>
+    <label>Nom <input name="signer_last_name"></label>
+  </div>
+  <label>Rôle dans la société
+    <input name="signer_role" placeholder="Gérant, Président, Directeur…">
+  </label>
+
+  <h3>Contact</h3>
+  <div class="grid">
+    <label>Téléphone <input name="signer_phone" placeholder="+33 …"></label>
+    <label>Email <input name="signer_email" type="email" placeholder="prenom@entreprise.fr"></label>
+  </div>
+
+  <h3>Adresse de facturation</h3>
+  <label>Adresse <input id="billing_address" name="billing_address" placeholder="N° et rue"></label>
+  <div class="grid">
+    <label>Code postal <input id="billing_zip" name="billing_zip"></label>
+    <label>Ville <input id="billing_city" name="billing_city"></label>
+  </div>
+
+  <h3>Adresse de livraison</h3>
+  <label>Adresse <input id="shipping_address" name="shipping_address" placeholder="N° et rue"></label>
+  <div class="grid">
+    <label>Code postal <input id="shipping_zip" name="shipping_zip"></label>
+    <label>Ville <input id="shipping_city" name="shipping_city"></label>
+  </div>
+
   <button class="btn btn--primary" type="submit">Créer</button>
 </form>
+
+<script>
+const input = document.getElementById('company_name');
+const box = document.getElementById('suggestions');
+let timer = null;
+
+input.addEventListener('input', () => {
+  const q = input.value.trim();
+  if (timer) clearTimeout(timer);
+  if (q.length < 2) { box.style.display='none'; box.innerHTML=''; return; }
+  timer = setTimeout(async () => {
+    try {
+      const url = 'https://recherche-entreprises.api.gouv.fr/search?q=' + encodeURIComponent(q) + '&page=1&per_page=5';
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      box.innerHTML = '';
+      (data.results || []).forEach((e) => {
+        const div = document.createElement('div');
+        div.className = 'suggestion';
+        const name = e.nom_complet || e.nom_raison_sociale || e.nom || '';
+        const siret = (e.siege && e.siege.siret) ? e.siege.siret : (e.siret || '');
+        const adr = e.siege && e.siege.adresse ? e.siege.adresse : '';
+        const cp = e.siege && e.siege.code_postal ? e.siege.code_postal : '';
+        const ville = e.siege && e.siege.libelle_commune ? e.siege.libelle_commune : '';
+        div.textContent = name + (siret ? ' — ' + siret : '');
+        div.addEventListener('click', () => {
+          input.value = name;
+          document.getElementById('siret').value = siret || '';
+          document.getElementById('billing_address').value = adr || '';
+          document.getElementById('billing_zip').value = cp || '';
+          document.getElementById('billing_city').value = ville || '';
+          box.style.display='none';
+          box.innerHTML = '';
+        });
+        box.appendChild(div);
+      });
+      box.style.display = box.children.length ? 'block' : 'none';
+    } catch (e) {
+      box.style.display='none'; box.innerHTML='';
+      console.error(e);
+    }
+  }, 250);
+});
+
+document.addEventListener('click', (ev) => {
+  if (!box.contains(ev.target) && ev.target !== input) {
+    box.style.display='none';
+  }
+});
+</script>
+
+<style>
+.suggestions{border:1px solid #e5e7eb;border-radius:10px;margin-top:-6px;margin-bottom:10px;overflow:hidden;background:#fff;max-width:600px}
+.suggestion{padding:10px 12px;cursor:pointer}
+.suggestion:hover{background:#f1f5f9}
+</style>
 {% endblock %}

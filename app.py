@@ -33,16 +33,54 @@ def init_db():
             role TEXT NOT NULL CHECK(role IN ('admin','user')),
             created_at TEXT NOT NULL
         );
+
         CREATE TABLE IF NOT EXISTS dossiers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             description TEXT,
             owner_id INTEGER NOT NULL,
             created_at TEXT NOT NULL,
+            company_name TEXT,
+            siret TEXT,
+            signer_first_name TEXT,
+            signer_last_name TEXT,
+            signer_role TEXT,
+            signer_phone TEXT,
+            signer_email TEXT,
+            billing_address TEXT,
+            billing_zip TEXT,
+            billing_city TEXT,
+            shipping_address TEXT,
+            shipping_zip TEXT,
+            shipping_city TEXT,
             FOREIGN KEY(owner_id) REFERENCES users(id)
         );
         """
     )
+    db.commit()
+
+def ensure_columns():
+    db = get_db()
+    cur = db.execute("PRAGMA table_info(dossiers)")
+    cols = {r["name"] for r in cur.fetchall()}
+    wanted = [
+        ("company_name", "TEXT"),
+        ("siret", "TEXT"),
+        ("signer_first_name", "TEXT"),
+        ("signer_last_name", "TEXT"),
+        ("signer_role", "TEXT"),
+        ("signer_phone", "TEXT"),
+        ("signer_email", "TEXT"),
+        ("billing_address", "TEXT"),
+        ("billing_zip", "TEXT"),
+        ("billing_city", "TEXT"),
+        ("shipping_address", "TEXT"),
+        ("shipping_zip", "TEXT"),
+        ("shipping_city", "TEXT"),
+    ]
+    for name, typ in wanted:
+        if name not in cols:
+            db.execute(f"ALTER TABLE dossiers ADD COLUMN {name} {typ}")
     db.commit()
 
 def ensure_admin():
@@ -52,10 +90,10 @@ def ensure_admin():
         email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
         password = os.environ.get("ADMIN_PASSWORD", "admin123")
         name = "Admin"
-        pwd_hash = pbkdf2_sha256.hash(password)
+        pwd = pbkdf2_sha256.hash(password)
         db.execute(
             "INSERT INTO users (email, name, password_hash, role, created_at) VALUES (?,?,?,?,?)",
-            (email, name, pwd_hash, "admin", datetime.datetime.utcnow().isoformat())
+            (email, name, pwd, "admin", datetime.datetime.utcnow().isoformat())
         )
         db.commit()
         print(f"[INIT] Admin créé: {email} / {password}")
@@ -64,6 +102,7 @@ def ensure_admin():
 def startup():
     if not hasattr(app, "db_initialized"):
         init_db()
+        ensure_columns()
         ensure_admin()
         app.db_initialized = True
 
@@ -72,8 +111,7 @@ def current_user():
     if not uid:
         return None
     db = get_db()
-    u = db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
-    return u
+    return db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
 
 @app.context_processor
 def inject_user():
@@ -161,7 +199,7 @@ def admin_users():
 def my_dossiers():
     u = current_user()
     db = get_db()
-    ds = db.execute("SELECT * FROM dossiers WHERE owner_id=? ORDER BY created_at DESC", (u["id"]),).fetchall()
+    ds = db.execute("SELECT * FROM dossiers WHERE owner_id=? ORDER BY created_at DESC", (u['id'],)).fetchall()
     return render_template("dossiers_list.html", dossiers=ds, title_page="Mes dossiers")
 
 @app.route("/dossiers/new", methods=["GET","POST"])
@@ -171,13 +209,37 @@ def create_dossier():
     if request.method == "POST":
         title = request.form["title"].strip()
         description = request.form.get("description","").strip()
+        company_name = request.form.get("company_name","").strip()
+        siret = request.form.get("siret","").strip()
+        signer_first_name = request.form.get("signer_first_name","").strip()
+        signer_last_name = request.form.get("signer_last_name","").strip()
+        signer_role = request.form.get("signer_role","").strip()
+        signer_phone = request.form.get("signer_phone","").strip()
+        signer_email = request.form.get("signer_email","").strip()
+        billing_address = request.form.get("billing_address","").strip()
+        billing_zip = request.form.get("billing_zip","").strip()
+        billing_city = request.form.get("billing_city","").strip()
+        shipping_address = request.form.get("shipping_address","").strip()
+        shipping_zip = request.form.get("shipping_zip","").strip()
+        shipping_city = request.form.get("shipping_city","").strip()
+
         if not title:
             flash("Le titre est requis.", "error")
         else:
             db = get_db()
             db.execute(
-                "INSERT INTO dossiers (title, description, owner_id, created_at) VALUES (?,?,?,?)",
-                (title, description, u["id"], datetime.datetime.utcnow().isoformat())
+                """INSERT INTO dossiers
+                   (title, description, owner_id, created_at,
+                    company_name, siret,
+                    signer_first_name, signer_last_name, signer_role, signer_phone, signer_email,
+                    billing_address, billing_zip, billing_city,
+                    shipping_address, shipping_zip, shipping_city)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (title, description, u["id"], datetime.datetime.utcnow().isoformat(),
+                 company_name, siret,
+                 signer_first_name, signer_last_name, signer_role, signer_phone, signer_email,
+                 billing_address, billing_zip, billing_city,
+                 shipping_address, shipping_zip, shipping_city)
             )
             db.commit()
             flash("Dossier créé.", "ok")
@@ -190,7 +252,12 @@ def admin_dossiers():
     db = get_db()
     ds = db.execute(
         """
-        SELECT d.id, d.title, d.description, d.created_at, u.name as owner_name, u.email as owner_email
+        SELECT d.id, d.title, d.description, d.created_at,
+               d.company_name, d.siret,
+               d.signer_first_name, d.signer_last_name, d.signer_role, d.signer_phone, d.signer_email,
+               d.billing_address, d.billing_zip, d.billing_city,
+               d.shipping_address, d.shipping_zip, d.shipping_city,
+               u.name as owner_name, u.email as owner_email
         FROM dossiers d
         JOIN users u ON u.id = d.owner_id
         ORDER BY d.created_at DESC

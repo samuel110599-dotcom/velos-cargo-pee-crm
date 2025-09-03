@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Bienvenue{% if user %}, {{ user['name'] }}{% endif %}</h1>
+<div style="display:flex;justify-content:center;margin:30px 0;">
+  <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="max-width:520px;height:auto;">
+</div>
+<h1 style="text-align:center;font-size:2em;font-weight:700;margin:10px 0 30px;">Bienvenue{% if user %}, {{ user['name'] }}{% endif %}</h1>
 <div class="grid">
   <a class="card" href="{{ url_for('create_dossier') }}"><h3>Créer un dossier</h3><p>Ajoutez un nouveau dossier avec un titre et une description.</p></a>
   <a class="card" href="{{ url_for('my_dossiers') }}"><h3>Mes dossiers</h3><p>Consultez et gérez vos dossiers.</p></a>
