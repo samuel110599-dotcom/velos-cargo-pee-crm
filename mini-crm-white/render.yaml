@@ -1,7 +1,1 @@
-services:
-  - type: web
-    name: velos-cargo-pee-crm
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
-    plan: free
+services:\n  - type: web\n    name: velos-cargo-pee-crm\n    env: python\n    buildCommand: pip install -r requirements.txt\n    startCommand: gunicorn app:app\n    plan: free\n

@@ -32,7 +32,6 @@ def init_db():
             role TEXT NOT NULL CHECK(role IN ('admin','user')),
             created_at TEXT NOT NULL
         );
-
         CREATE TABLE IF NOT EXISTS dossiers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -46,11 +45,9 @@ def init_db():
     db.commit()
 
 def ensure_admin():
-    # Create default admin if none exists
     db = get_db()
     cur = db.execute("SELECT id FROM users WHERE role='admin' LIMIT 1")
     if not cur.fetchone():
-        # Default credentials
         email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
         password = os.environ.get("ADMIN_PASSWORD", "admin123")
         name = "Admin"
@@ -62,10 +59,13 @@ def ensure_admin():
         db.commit()
         print(f"[INIT] Admin créé: {email} / {password}")
 
-@app.before_first_request
+# Fix for Flask 3.x: use before_request with a guard flag
+@app.before_request
 def startup():
-    init_db()
-    ensure_admin()
+    if not hasattr(app, "db_initialized"):
+        init_db()
+        ensure_admin()
+        app.db_initialized = True
 
 def current_user():
     uid = session.get("user_id")
@@ -128,13 +128,11 @@ def dashboard():
     u = current_user()
     return render_template("dashboard.html", user=u)
 
-# --- Users (admin) ---
 @app.route("/admin/users", methods=["GET","POST"])
 @admin_required
 def admin_users():
     db = get_db()
     if request.method == "POST":
-        # create user
         email = request.form["email"].strip().lower()
         name = request.form["name"].strip()
         role = request.form.get("role","user")
@@ -154,7 +152,6 @@ def admin_users():
     users = db.execute("SELECT id, email, name, role, created_at FROM users ORDER BY created_at DESC").fetchall()
     return render_template("admin_users.html", users=users)
 
-# --- Dossiers ---
 @app.route("/dossiers")
 @login_required
 def my_dossiers():
@@ -183,7 +180,6 @@ def create_dossier():
             return redirect(url_for("my_dossiers"))
     return render_template("dossier_create.html")
 
-# --- Admin: liste de tous les dossiers ---
 @app.route("/admin/dossiers")
 @admin_required
 def admin_dossiers():
@@ -197,5 +193,4 @@ def admin_dossiers():
     return render_template("admin_dossiers.html", dossiers=ds)
 
 if __name__ == "__main__":
-    # Local dev server
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
