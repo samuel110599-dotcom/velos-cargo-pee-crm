@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Bienvenue{% if user %}, {{ user['name'] }}{% endif %}</h1>
+<div class="grid">
+  <a class="card" href="{{ url_for('create_dossier') }}"><h3>Créer un dossier</h3><p>Ajoutez un nouveau dossier avec un titre et une description.</p></a>
+  <a class="card" href="{{ url_for('my_dossiers') }}"><h3>Mes dossiers</h3><p>Consultez et gérez vos dossiers.</p></a>
+  {% if user and user['role']=='admin' %}
+  <a class="card" href="{{ url_for('admin_users') }}"><h3>Administration — Utilisateurs</h3><p>Créer des accès et gérer les comptes.</p></a>
+  <a class="card" href="{{ url_for('admin_dossiers') }}"><h3>Administration — Tous les dossiers</h3><p>Vue globale de tous les dossiers.</p></a>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Administration — Tous les dossiers</h1>
+<table class="table"><thead><tr><th>ID</th><th>Titre</th><th>Propriétaire</th><th>Email</th><th>Créé le</th><th>Description</th></tr></thead><tbody>
+{% for d in dossiers %}<tr><td>{{ d['id'] }}</td><td>{{ d['title'] }}</td><td>{{ d['owner_name'] }}</td><td>{{ d['owner_email'] }}</td><td>{{ d['created_at'][:19].replace('T',' ') }}</td><td>{{ d['description'] or '' }}</td></tr>{% endfor %}
+</tbody></table>
+{% if not dossiers %}<p class="muted">Aucun dossier créé pour l’instant.</p>{% endif %}
+{% endblock %}

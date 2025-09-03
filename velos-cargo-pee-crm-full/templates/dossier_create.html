@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Créer un dossier</h1>
+<form method="post" class="form">
+  <label>Titre <input name="title" required placeholder="Ex. Dossier client Dupont"></label>
+  <label>Description <textarea name="description" rows="4" placeholder="Notes, contexte…"></textarea></label>
+  <button class="btn btn--primary" type="submit">Créer</button>
+</form>
+{% endblock %}
