@@ -25,7 +25,15 @@
     <label>Téléphone <input name="signer_phone" placeholder="+33 …"></label>
     <label>Email <input name="signer_email" type="email" placeholder="prenom@entreprise.fr"></label>
   </div>
-  <button type="button" class="btn btn--sm" id="btn-fetch-officers">↺ Remplir automatiquement (dirigeants)</button>
+
+  <!-- Beau bouton -->
+  <div class="actions">
+    <button type="button" class="btn btn--primary" id="btn-fetch-officers">
+      <span class="btn__spinner" id="btn-spin" style="display:none;">⏳</span>
+      🔎 Remplir automatiquement (dirigeants)
+    </button>
+    <span id="status" class="status"></span>
+  </div>
 
   <h3>Adresses</h3>
   <fieldset class="card soft">
@@ -52,22 +60,23 @@
 </form>
 
 <script>
-/* Helpers */
-function onlyDigits(s){ return (s||'').replace(/\\D+/g,''); }
-function toSiren(raw){
-  const d = onlyDigits(raw||'');
-  if(d.length >= 9) return d.slice(0,9);
-  return null;
+/* ===== Helpers ===== */
+function digits(s){ return (s||'').replace(/\D+/g,''); }
+function sirenFrom(any){ const d=digits(any||''); return d.length>=9 ? d.slice(0,9) : null; }
+function preferOfficer(list){
+  if(!list || !list.length) return null;
+  const key=o=>((o.fonction||o.qualite||o.role||'')+'').toLowerCase();
+  const pr=['gérant','gerant','président','president','directeur','dirigeant'];
+  for(const p of pr){ const f=list.find(o=>key(o).includes(p)); if(f) return f; }
+  return list[0];
 }
-function preferOfficer(officers){
-  if(!officers || !officers.length) return null;
-  const key = (o)=> ((o.fonction||o.qualite||o.role||'')+'').toLowerCase();
-  const pr = ['gérant','gerant','président','president','directeur','dirigeant'];
-  for(const p of pr){ const f = officers.find(o => key(o).includes(p)); if(f) return f; }
-  return officers[0];
+function setStatus(msg, ok=true){
+  const el=document.getElementById('status');
+  el.textContent=msg||'';
+  el.className='status ' + (ok?'ok':'err');
 }
 
-/* Autocomplete entreprises */
+/* ===== Autocomplete (API publique) ===== */
 const input = document.getElementById('company_name');
 const box = document.getElementById('suggestions');
 let timer=null;
@@ -78,17 +87,16 @@ input.addEventListener('input', ()=>{
   if(q.length<2){ box.style.display='none'; box.innerHTML=''; return; }
   timer=setTimeout(async ()=>{
     try{
-      const url='https://recherche-entreprises.api.gouv.fr/search?q='+encodeURIComponent(q)+'&page=1&per_page=6';
-      const res=await fetch(url);
-      if(!res.ok) throw new Error('API search error');
+      const res=await fetch('https://recherche-entreprises.api.gouv.fr/search?q='+encodeURIComponent(q)+'&page=1&per_page=6');
+      if(!res.ok) throw new Error('API search');
       const data=await res.json();
       box.innerHTML='';
-      (data.results||[]).forEach((e)=>{
-        const name=e.nom_complet||e.nom||'';
+      (data.results||[]).forEach(e=>{
+        const name=e.nom_complet||e.nom_raison_sociale||e.nom||'';
         const siret=(e.siege && e.siege.siret)? e.siege.siret : (e.siret||'');
         const adr=e.siege?.adresse||''; const cp=e.siege?.code_postal||''; const ville=e.siege?.libelle_commune||'';
         const div=document.createElement('div'); div.className='suggestion';
-        div.innerHTML='<strong>'+name+'</strong>'+(siret? ' — <small>'+siret+'</small>':'');
+        div.innerHTML='<strong>'+name+'</strong>'+(siret?' — <small>'+siret+'</small>':'');
         div.addEventListener('click', async ()=>{
           input.value=name;
           document.getElementById('siret').value=siret||'';
@@ -96,57 +104,68 @@ input.addEventListener('input', ()=>{
           document.getElementById('billing_zip').value=cp||'';
           document.getElementById('billing_city').value=ville||'';
           box.style.display='none'; box.innerHTML='';
-          await fillOfficersPublic(siret,name);
+          await autoFillOfficers(siret, name);  // auto-direct
         });
         box.appendChild(div);
       });
       box.style.display = box.children.length ? 'block' : 'none';
     }catch(e){ box.style.display='none'; box.innerHTML=''; }
-  },250);
+  }, 250);
 });
 
-/* Récup dirigeants via API publique */
-async function fetchEntrepriseBySiren(siren){
-  const res = await fetch('https://recherche-entreprises.api.gouv.fr/entreprise/'+encodeURIComponent(siren));
-  if(!res.ok) throw new Error('API entreprise error');
-  return await res.json();
+/* ===== Dirigeants via API publique ===== */
+async function getEntrepriseBySiren(siren){
+  const r = await fetch('https://recherche-entreprises.api.gouv.fr/entreprise/'+encodeURIComponent(siren));
+  if(!r.ok) throw new Error('API entreprise');
+  return await r.json();
 }
-async function fillOfficersPublic(siretMaybe, nameMaybe){
-  let siren = toSiren(siretMaybe);
+async function autoFillOfficers(siretMaybe, nameMaybe){
+  setStatus('', true);
+  const btn=document.getElementById('btn-fetch-officers');
+  const spin=document.getElementById('btn-spin');
+  btn.disabled=true; spin.style.display='inline-block';
+
   try{
+    let siren = sirenFrom(siretMaybe);
+    // si pas siren → rechercher 1er résultat par nom
     if(!siren && nameMaybe){
-      const res = await fetch('https://recherche-entreprises.api.gouv.fr/search?q='+encodeURIComponent(nameMaybe)+'&page=1&per_page=1');
-      if(res.ok){
-        const data = await res.json();
-        const first = (data.results||[])[0];
+      const rs = await fetch('https://recherche-entreprises.api.gouv.fr/search?q='+encodeURIComponent(nameMaybe)+'&page=1&per_page=1');
+      if(rs.ok){
+        const d = await rs.json();
+        const first = (d.results||[])[0];
         if(first){
           const siret2 = first.siege?.siret || first.siret || '';
-          siren = toSiren(siret2);
           if(siret2 && !document.getElementById('siret').value){
             document.getElementById('siret').value = siret2;
           }
+          siren = sirenFrom(siret2);
         }
       }
     }
-    if(!siren) return;
-    const d2 = await fetchEntrepriseBySiren(siren);
-    const dirs = d2.dirigeants || d2.siege?.dirigeants || [];
-    if(dirs.length){
-      const d = preferOfficer(dirs);
-      if(d){
-        document.getElementById('signer_first_name').value = (d.prenom||d.prenoms||'').split(' ')[0]||'';
-        document.getElementById('signer_last_name').value  = d.nom||'';
-        document.getElementById('signer_role').value       = d.fonction||d.qualite||d.role||'';
-      }
-    }
-  }catch(e){ console.warn(e); }
+    if(!siren){ setStatus("Aucun SIREN trouvé.", false); return; }
+
+    const ent = await getEntrepriseBySiren(siren);
+    const dirs = ent.dirigeants || ent.siege?.dirigeants || [];
+    if(!dirs.length){ setStatus("Aucun dirigeant trouvé.", false); return; }
+
+    const d = preferOfficer(dirs);
+    document.getElementById('signer_first_name').value = (d.prenom||d.prenoms||'').split(' ')[0]||'';
+    document.getElementById('signer_last_name').value  = d.nom||'';
+    document.getElementById('signer_role').value       = d.fonction||d.qualite||d.role||'';
+
+    setStatus("Dirigeant rempli automatiquement ✅", true);
+  }catch(e){
+    setStatus("Erreur de récupération.", false);
+  }finally{
+    btn.disabled=false; spin.style.display='none';
+  }
 }
 
 /* Bouton manuel */
-document.getElementById('btn-fetch-officers').addEventListener('click', async () => {
-  const siret = (document.getElementById('siret').value||'').replace(/\\D+/g,'');
+document.getElementById('btn-fetch-officers').addEventListener('click', async ()=>{
+  const siret = document.getElementById('siret').value;
   const name  = document.getElementById('company_name').value.trim();
-  await fillOfficersPublic(siret, name);
+  await autoFillOfficers(siret, name);
 });
 
 /* Copier facturation -> livraison */
@@ -160,10 +179,21 @@ document.getElementById('same_address').addEventListener('change', (ev)=>{
 </script>
 
 <style>
+/* bouton + status (s'adosse au style global .btn/.btn--primary déjà présent) */
+.actions{display:flex;align-items:center;gap:12px;margin:10px 0 4px}
+.status{font-size:14px}
+.status.ok{color:#047857}
+.status.err{color:#b91c1c}
+.btn__spinner{margin-right:6px}
+
+/* suggestions de l'autocomplete */
 .suggestions{border:1px solid #e5e7eb;border-radius:10px;margin-top:-6px;margin-bottom:10px;overflow:hidden;background:#fff;max-width:700px}
 .suggestion{padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9}
+.suggestion:last-child{border-bottom:none}
 .suggestion:hover{background:#f8fafc}
-.inline{display:flex;align-items:center;gap:8px;margin:12px 0}
+
+/* carte formulaire */
 .form--card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px}
+.inline{display:flex;align-items:center;gap:8px;margin:12px 0}
 </style>
 {% endblock %}
