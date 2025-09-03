@@ -79,3 +79,41 @@ def create_dossier():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+# --- AJOUT: auto-remplissage via Pappers ---
+import os, requests
+from flask import jsonify, request
+
+PAPPERS_API_KEY = os.environ.get("PAPPERS_API_KEY")  # ta clé à mettre dans Render
+
+@app.route("/api/lookup_siret")
+def lookup_siret():
+    siret = (request.args.get("siret") or "").replace(" ", "")
+    if not siret or len(siret) < 9:
+        return jsonify({"ok": False, "error": "SIRET invalide"}), 400
+
+    siren = siret[:9]  # Pappers fonctionne avec le SIREN (9 chiffres)
+
+    try:
+        r = requests.get(
+            "https://api.pappers.fr/v2/entreprise",
+            params={"api_token": PAPPERS_API_KEY, "siren": siren},
+            timeout=10
+        )
+        data = r.json()
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
+
+    # Récupération infos
+    company_name = data.get("denomination") or ""
+    reps = data.get("representants") or []
+    dirigeant = reps[0] if reps else {}
+
+    return jsonify({
+        "ok": True,
+        "company_name": company_name,
+        "signer_first_name": dirigeant.get("prenom",""),
+        "signer_last_name": dirigeant.get("nom",""),
+        "signer_role": dirigeant.get("fonction",""),
+    })
+# --- FIN AJOUT ---
