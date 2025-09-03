@@ -1,3 +1,4 @@
+
 import os, sqlite3
 from flask import Flask, render_template, request, redirect, url_for, g
 
@@ -77,5 +78,4 @@ def create_dossier():
     return render_template("dossier_create.html")
 
 if __name__ == "__main__":
-    # IMPORTANT pour Render (écoute sur le port fourni par l'env)
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+    app.run(debug=True)
