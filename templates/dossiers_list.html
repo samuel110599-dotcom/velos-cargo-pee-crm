@@ -1,17 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>{{ title_page or "Dossiers" }}</h1>
-<p><a class="btn btn--sm" href="{{ url_for('create_dossier') }}">+ Nouveau dossier</a></p>
-<table class="table"><thead><tr><th>ID</th><th>Titre</th><th>SIRET</th><th>Entreprise</th><th>Créé le</th></tr></thead><tbody>
-{% for d in dossiers %}
-<tr>
-  <td>{{ d['id'] }}</td>
-  <td>{{ d['title'] }}</td>
-  <td>{{ d['siret'] or '' }}</td>
-  <td>{{ d['company_name'] or '' }}</td>
-  <td>{{ d['created_at'][:19].replace('T',' ') }}</td>
-</tr>
-{% endfor %}
-</tbody></table>
-{% if not dossiers %}<p class="muted">Aucun dossier pour le moment.</p>{% endif %}
+<h1>Mes dossiers</h1>
+<table class="table">
+  <thead><tr><th>ID</th><th>Entreprise</th><th>SIRET</th></tr></thead>
+  <tbody>
+  {% for d in dossiers %}
+    <tr><td>{{ d[0] }}</td><td>{{ d[1] }}</td><td>{{ d[2] }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
 {% endblock %}

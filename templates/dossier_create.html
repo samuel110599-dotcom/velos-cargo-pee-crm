@@ -1,110 +1,166 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Nouveau dossier</h1>
-<form method="post" class="form">
-  <h3>Informations générales</h3>
-  <label>Titre du dossier
-    <input name="title" required placeholder="Ex. Installation vélo cargo entreprise X">
-  </label>
-  <label>Notes
-    <textarea name="description" rows="3" placeholder="Notes internes…"></textarea>
-  </label>
+<h1>Entreprise</h1>
 
-  <h3>Entreprise</h3>
-  <label>Nom de la société
+<form method="post" class="form form--card">
+  <h3>Identité</h3>
+  <label>Nom de la société *
     <input id="company_name" name="company_name" placeholder="Tapez pour rechercher…">
   </label>
   <div id="suggestions" class="suggestions" style="display:none;"></div>
+
+  <div class="hint">
+    <div class="hint-title">SIRET</div>
+    <p>Pour trouver un SIRET :
+      <a class="chip" id="link-pappers" href="https://www.pappers.fr/recherche" target="_blank">Pappers</a>
+      <a class="chip" id="link-societe" href="https://www.societe.com/" target="_blank">Societe.com</a>
+    </p>
+  </div>
+
   <label>Numéro de SIRET
     <input id="siret" name="siret" placeholder="14 chiffres">
   </label>
 
   <h3>Signataire</h3>
   <div class="grid">
-    <label>Prénom <input name="signer_first_name"></label>
-    <label>Nom <input name="signer_last_name"></label>
+    <label>Prénom <input id="signer_first_name" name="signer_first_name"></label>
+    <label>Nom <input id="signer_last_name" name="signer_last_name"></label>
   </div>
   <label>Rôle dans la société
-    <input name="signer_role" placeholder="Gérant, Président, Directeur…">
+    <input id="signer_role" name="signer_role" placeholder="Gérant, Président…">
   </label>
-
-  <h3>Contact</h3>
   <div class="grid">
     <label>Téléphone <input name="signer_phone" placeholder="+33 …"></label>
     <label>Email <input name="signer_email" type="email" placeholder="prenom@entreprise.fr"></label>
   </div>
+  <button type="button" class="btn btn--sm" id="btn-fetch-officers">↺ Remplir automatiquement (dirigeants)</button>
 
-  <h3>Adresse de facturation</h3>
-  <label>Adresse <input id="billing_address" name="billing_address" placeholder="N° et rue"></label>
-  <div class="grid">
-    <label>Code postal <input id="billing_zip" name="billing_zip"></label>
-    <label>Ville <input id="billing_city" name="billing_city"></label>
-  </div>
+  <h3>Adresses</h3>
+  <fieldset class="card soft">
+    <legend>Facturation</legend>
+    <label>Adresse <input id="billing_address" name="billing_address" placeholder="N° et rue"></label>
+    <div class="grid">
+      <label>Code postal <input id="billing_zip" name="billing_zip"></label>
+      <label>Ville <input id="billing_city" name="billing_city"></label>
+    </div>
+  </fieldset>
 
-  <h3>Adresse de livraison</h3>
-  <label>Adresse <input id="shipping_address" name="shipping_address" placeholder="N° et rue"></label>
-  <div class="grid">
-    <label>Code postal <input id="shipping_zip" name="shipping_zip"></label>
-    <label>Ville <input id="shipping_city" name="shipping_city"></label>
-  </div>
+  <label class="inline"><input type="checkbox" id="same_address"> Adresse de livraison = Adresse de facturation</label>
 
-  <button class="btn btn--primary" type="submit">Créer</button>
+  <fieldset class="card soft">
+    <legend>Livraison</legend>
+    <label>Adresse <input id="shipping_address" name="shipping_address" placeholder="N° et rue"></label>
+    <div class="grid">
+      <label>Code postal <input id="shipping_zip" name="shipping_zip"></label>
+      <label>Ville <input id="shipping_city" name="shipping_city"></label>
+    </div>
+  </fieldset>
+
+  <button class="btn btn--primary" type="submit">Créer le dossier</button>
 </form>
 
 <script>
+function updateExternalLinks(q){
+  const p=document.getElementById('link-pappers');
+  const s=document.getElementById('link-societe');
+  const qq=encodeURIComponent(q||'');
+  p.href='https://www.pappers.fr/recherche?q='+qq;
+  s.href='https://www.societe.com/cgi-bin/search?champs='+qq;
+}
+
 const input = document.getElementById('company_name');
 const box = document.getElementById('suggestions');
-let timer = null;
+let timer=null;
 
-input.addEventListener('input', () => {
-  const q = input.value.trim();
-  if (timer) clearTimeout(timer);
-  if (q.length < 2) { box.style.display='none'; box.innerHTML=''; return; }
-  timer = setTimeout(async () => {
-    try {
-      const url = 'https://recherche-entreprises.api.gouv.fr/search?q=' + encodeURIComponent(q) + '&page=1&per_page=5';
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('API error');
-      const data = await res.json();
-      box.innerHTML = '';
-      (data.results || []).forEach((e) => {
-        const div = document.createElement('div');
-        div.className = 'suggestion';
-        const name = e.nom_complet || e.nom_raison_sociale || e.nom || '';
-        const siret = (e.siege && e.siege.siret) ? e.siege.siret : (e.siret || '');
-        const adr = e.siege && e.siege.adresse ? e.siege.adresse : '';
-        const cp = e.siege && e.siege.code_postal ? e.siege.code_postal : '';
-        const ville = e.siege && e.siege.libelle_commune ? e.siege.libelle_commune : '';
-        div.textContent = name + (siret ? ' — ' + siret : '');
-        div.addEventListener('click', () => {
-          input.value = name;
-          document.getElementById('siret').value = siret || '';
-          document.getElementById('billing_address').value = adr || '';
-          document.getElementById('billing_zip').value = cp || '';
-          document.getElementById('billing_city').value = ville || '';
-          box.style.display='none';
-          box.innerHTML = '';
+input.addEventListener('input', ()=>{
+  const q=input.value.trim();
+  updateExternalLinks(q);
+  if(timer) clearTimeout(timer);
+  if(q.length<2){box.style.display='none';box.innerHTML='';return;}
+  timer=setTimeout(async ()=>{
+    try{
+      const url='https://recherche-entreprises.api.gouv.fr/search?q='+encodeURIComponent(q)+'&page=1&per_page=6';
+      const res=await fetch(url);
+      if(!res.ok) throw new Error('API');
+      const data=await res.json();
+      box.innerHTML='';
+      (data.results||[]).forEach((e)=>{
+        const div=document.createElement('div'); div.className='suggestion';
+        const name=e.nom_complet||e.nom_raison_sociale||e.nom||'';
+        const siret=(e.siege && e.siege.siret)? e.siege.siret : (e.siret||'');
+        const adr=e.siege && e.siege.adresse ? e.siege.adresse : '';
+        const cp=e.siege && e.siege.code_postal ? e.siege.code_postal : '';
+        const ville=e.siege && e.siege.libelle_commune ? e.siege.libelle_commune : '';
+        div.innerHTML='<strong>'+name+'</strong>'+(siret? ' — <small>'+siret+'</small>':'');
+        div.addEventListener('click', async ()=>{
+          input.value=name;
+          document.getElementById('siret').value=siret||'';
+          document.getElementById('billing_address').value=adr||'';
+          document.getElementById('billing_zip').value=cp||'';
+          document.getElementById('billing_city').value=ville||'';
+          box.style.display='none'; box.innerHTML='';
+          // Try to fetch dirigeants
+          try{
+            if(siret){
+              const res2=await fetch('https://recherche-entreprises.api.gouv.fr/entreprise/'+siret);
+              if(res2.ok){
+                const d2=await res2.json();
+                const dirs=(d2.dirigeants||d2.siege?.dirigeants||[]);
+                if(dirs.length){
+                  const d=dirs[0];
+                  document.getElementById('signer_first_name').value=(d.prenom||d.prenoms||'').split(' ')[0]||'';
+                  document.getElementById('signer_last_name').value=d.nom||'';
+                  document.getElementById('signer_role').value=d.fonction||d.qualite||'';
+                }
+              }
+            }
+          }catch(e){console.warn(e);}
         });
         box.appendChild(div);
       });
       box.style.display = box.children.length ? 'block' : 'none';
-    } catch (e) {
-      box.style.display='none'; box.innerHTML='';
-      console.error(e);
-    }
-  }, 250);
+    }catch(e){box.style.display='none';box.innerHTML='';}
+  },250);
 });
 
-document.addEventListener('click', (ev) => {
-  if (!box.contains(ev.target) && ev.target !== input) {
-    box.style.display='none';
+// Manual fetch button
+document.getElementById('btn-fetch-officers').addEventListener('click', async ()=>{
+  const siret=document.getElementById('siret').value.trim();
+  if(!siret) return;
+  try{
+    const res2=await fetch('https://recherche-entreprises.api.gouv.fr/entreprise/'+siret);
+    if(res2.ok){
+      const d2=await res2.json();
+      const dirs=(d2.dirigeants||d2.siege?.dirigeants||[]);
+      if(dirs.length){
+        const d=dirs[0];
+        document.getElementById('signer_first_name').value=(d.prenom||d.prenoms||'').split(' ')[0]||'';
+        document.getElementById('signer_last_name').value=d.nom||'';
+        document.getElementById('signer_role').value=d.fonction||d.qualite||'';
+      }
+    }
+  }catch(e){}
+});
+
+// Copy billing -> shipping
+document.getElementById('same_address').addEventListener('change', (ev)=>{
+  if(ev.target.checked){
+    document.getElementById('shipping_address').value=document.getElementById('billing_address').value;
+    document.getElementById('shipping_zip').value=document.getElementById('billing_zip').value;
+    document.getElementById('shipping_city').value=document.getElementById('billing_city').value;
   }
 });
 </script>
 
 <style>
-.suggestions{border:1px solid #e5e7eb;border-radius:10px;margin-top:-6px;margin-bottom:10px;overflow:hidden;background:#fff;max-width:600px}
-.suggestion{padding:10px 12px;cursor:pointer}
-.suggestion:hover{background:#f1f5f9}
+.suggestions{border:1px solid #e5e7eb;border-radius:10px;margin-top:-6px;margin-bottom:10px;overflow:hidden;background:#fff;max-width:700px}
+.suggestion{padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9}
+.suggestion:last-child{border-bottom:none}
+.suggestion:hover{background:#f8fafc}
+.hint{border:1px dashed #cbd5e1;background:#f8fafc;border-radius:12px;padding:10px 12px;margin:8px 0 10px}
+.hint-title{font-weight:700;margin-bottom:6px}
+.chip{display:inline-block;padding:6px 10px;border-radius:999px;background:#e8fff2;border:1px solid #86efac;margin-left:6px}
+.inline{display:flex;align-items:center;gap:8px;margin:12px 0}
+.form--card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px}
 </style>
 {% endblock %}
